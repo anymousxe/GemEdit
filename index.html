@@ -3,132 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matter // Visual Engine</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+    <title>MATTER // PRO</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://code.iconify.design/2/2.2.1/iconify.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <svg style="display: none;">
+        <defs>
+            <filter id="pixelate" x="0" y="0">
+                <feFlood x="2" y="2" height="2" width="2"/>
+                <feComposite width="10" height="10"/>
+                <feTile result="a"/>
+                <feComposite in="SourceGraphic" in2="a" operator="in"/>
+                <feMorphology operator="dilate" radius="5"/>
+            </filter>
+        </defs>
+    </svg>
+
     <div id="auth-screen">
-        <div class="space-bg">
-            <div class="shape cube"></div>
-            <div class="shape sphere"></div>
-            <div class="shape pyramid"></div>
-        </div>
-        <div class="auth-box glass">
-            <h1 class="glitch" data-text="MATTER">MATTER</h1>
-            <p>NON-LINEAR EDITING // BROWSER BASED</p>
+        <div class="auth-box">
+            <h1>MATTER</h1>
+            <p>SYSTEM ACCESS REQUIRED</p>
             <button id="google-login-btn">
-                <span class="iconify" data-icon="flat-color-icons:google"></span>
-                ENTER SYSTEM
+                <span class="iconify" data-icon="ph:google-logo-bold"></span>
+                AUTHENTICATE
             </button>
         </div>
     </div>
 
-    <div id="dashboard" class="hidden">
-        <header class="dash-header">
-            <div class="logo">MATTER <span class="beta">BETA</span></div>
-            <div class="user-profile">
-                <img id="dash-pfp" src="" alt="Profile">
-                <span id="dash-name">User</span>
-                <button id="logout-btn-dash" class="text-btn">LOGOUT</button>
-            </div>
-        </header>
+    <div id="app" class="hidden">
         
-        <div class="dash-content">
-            <div class="projects-grid" id="projects-list">
-                <div class="new-project-card" id="new-project-btn">
-                    <span class="iconify" data-icon="ph:plus-light"></span>
-                    <p>NEW COMPOSITION</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="editor" class="hidden">
         <header>
-            <div class="left-controls">
-                <button id="back-to-dash"><span class="iconify" data-icon="ph:arrow-left"></span></button>
-                <input type="text" id="project-title" value="Untitled Project" class="title-edit">
+            <div class="brand">
+                <span class="iconify" data-icon="ph:circles-three-plus-fill"></span>
+                MATTER <span class="badge">PRO</span>
             </div>
-            <div class="tools">
-                <button id="save-project-btn"><span class="iconify" data-icon="ph:floppy-disk"></span> SAVE</button>
-                <button id="export-btn" class="accent">EXPORT</button>
+            <div class="header-center">
+                <span id="project-name">Untitled Composition</span>
+            </div>
+            <div class="header-right">
+                <div class="user-pill">
+                    <img id="user-pfp" src="" alt="">
+                    <span id="user-name">Guest</span>
+                </div>
+                <button id="logout-btn" class="icon-only"><span class="iconify" data-icon="ph:sign-out"></span></button>
             </div>
         </header>
 
         <main>
             <section class="panel left">
                 <div class="tabs">
-                    <button class="tab active" data-tab="assets">FILES</button>
-                    <button class="tab" data-tab="stock">STOCK</button>
-                </div>
-                
-                <div id="tab-assets" class="tab-content active">
-                    <div id="drop-zone" class="upload-zone">
-                        <span class="iconify" data-icon="ph:upload-simple"></span>
-                        <small>DROP MEDIA</small>
-                        <input type="file" id="file-upload" multiple hidden>
-                    </div>
+                    <button class="tab active" data-tab="files">FILES</button>
+                    <button class="tab" data-tab="stock">PIXABAY</button>
                 </div>
 
-                <div id="tab-stock" class="tab-content">
-                    <div class="stock-search">
-                        <input type="text" placeholder="Search Pixabay..." id="stock-search-input">
+                <div id="tab-files" class="tab-content active">
+                    <div id="drop-zone">
+                        <span class="iconify" data-icon="ph:plus-circle" style="font-size: 32px;"></span>
+                        <p>Import Media</p>
+                        <input type="file" id="file-upload" multiple hidden>
                     </div>
-                    <div class="stock-grid">
-                        <div class="stock-item" onclick="createLayer('https://cdn.pixabay.com/photo/2023/08/29/19/42/goose-8222013_1280.jpg', 'image')">
-                            <img src="https://cdn.pixabay.com/photo/2023/08/29/19/42/goose-8222013_1280.jpg">
-                        </div>
-                         <div class="stock-item" onclick="createLayer('https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885_1280.jpg', 'image')">
-                            <img src="https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885_1280.jpg">
-                        </div>
+                    <div class="file-list-help">Supported: IMG, MP4</div>
+                </div>
+
+                <div id="tab-stock" class="tab-content no-pad">
+                    <div class="iframe-container">
+                        <div class="iframe-overlay-hint">Right Click Image -> Copy Image Address -> Paste in URL Box</div>
+                        <iframe src="https://pixabay.com/" title="Pixabay Stock"></iframe>
                     </div>
-                    <small style="color:#444; padding:10px; display:block;">*Pixabay Integration Preview</small>
+                    <div class="url-importer">
+                        <input type="text" id="url-input" placeholder="Paste Image Address...">
+                        <button id="url-add-btn"><span class="iconify" data-icon="ph:download-simple"></span></button>
+                    </div>
                 </div>
             </section>
 
-            <section class="viewport">
-                <div id="canvas-wrapper">
-                    <div id="canvas-stage"></div>
+            <section class="center-stage">
+                <div class="viewport-controls">
+                    <span class="res-tag">1920x1080</span>
+                    <button id="save-btn" class="accent-text"><span class="iconify" data-icon="ph:floppy-disk-fill"></span> SAVE</button>
                 </div>
                 
-                <div class="timeline-panel">
-                    <div class="timeline-tools">
-                        <button id="play-btn"><span class="iconify" data-icon="ph:play-fill"></span></button>
-                        <span id="time-display">00:00:00</span>
-                        <input type="range" id="main-scrubber" value="0" min="0" max="1000">
-                    </div>
-                    <div id="timeline-layers">
+                <div id="canvas-wrapper">
+                    <div id="canvas-stage">
                         </div>
+                </div>
+
+                <div class="timeline-bar">
+                    <div class="transport">
+                        <button id="play-btn"><span class="iconify" data-icon="ph:play-fill"></span></button>
+                        <button id="stop-btn"><span class="iconify" data-icon="ph:stop-fill"></span></button>
+                        <span id="time-display">00:00:00</span>
+                    </div>
+                    <input type="range" id="scrubber" min="0" max="100" value="0">
                 </div>
             </section>
 
             <section class="panel right">
-                <div class="panel-header">ATTRIBUTES</div>
+                <div class="panel-header">PROPERTIES</div>
                 
-                <div id="active-prop-panel">
-                    <p class="placeholder-text">Select a layer</p>
+                <div id="prop-panel-content">
+                    <p class="empty-state">Select a layer to edit</p>
                 </div>
 
-                <template id="prop-template">
-                    <div class="prop-group">
-                        <label>OPACITY</label>
-                        <input type="range" class="prop-input" data-prop="opacity" min="0" max="1" step="0.01">
+                <template id="layer-props-template">
+                    
+                    <div class="prop-section">
+                        <label>TRANSITIONS</label>
+                        <div class="btn-grid">
+                            <button class="action-btn" data-action="fade-in">Fade In</button>
+                            <button class="action-btn" data-action="fade-out">Fade Out</button>
+                        </div>
                     </div>
-                    <div class="prop-group">
-                        <label>BLUR (PX)</label>
-                        <input type="range" class="prop-input" data-prop="blur" min="0" max="50">
+
+                    <div class="prop-section">
+                        <label>SPLICING</label>
+                        <div class="btn-grid">
+                            <button class="action-btn" data-action="split">
+                                <span class="iconify" data-icon="ph:scissors"></span> Split Clip
+                            </button>
+                        </div>
                     </div>
-                     <div class="prop-group">
-                        <label>HUE ROTATE</label>
-                        <input type="range" class="prop-input" data-prop="hue" min="0" max="360">
+
+                    <div class="prop-section">
+                        <label>EFFECTS</label>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>BLUR</span> <span class="val-display" id="val-blur">0px</span></div>
+                            <input type="range" class="prop-slider" data-prop="blur" min="0" max="20" step="1" value="0">
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>PIXELATE</span> <span class="val-display" id="val-pixel">0%</span></div>
+                            <input type="range" class="prop-slider" data-prop="pixelate" min="0" max="10" step="1" value="0">
+                        </div>
                     </div>
-                    <div class="prop-group code-group">
-                        <label>EXPRESSION CODE (JS)</label>
-                        <textarea class="code-editor" placeholder="e.g. this.style.opacity = Math.random()"></textarea>
-                        <button class="run-code-btn">INJECT CODE</button>
+
+                    <div class="prop-section">
+                        <label>TRANSFORM</label>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>OPACITY</span> <span class="val-display" id="val-opacity">100%</span></div>
+                            <input type="range" class="prop-slider" data-prop="opacity" min="0" max="100" value="100">
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-label"><span>SCALE</span> <span class="val-display" id="val-scale">1.0</span></div>
+                            <input type="range" class="prop-slider" data-prop="scale" min="0.1" max="3" step="0.1" value="1">
+                        </div>
                     </div>
                 </template>
             </section>
