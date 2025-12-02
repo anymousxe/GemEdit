@@ -1,0 +1,81 @@
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#app {
+    display: grid;
+    grid-template-rows: 50px 1fr 200px; /* Header, Main, Timeline */
+    height: 100%;
+}
+
+header {
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+}
+
+.logo span { font-size: 0.8rem; color: #bb86fc; background: #333; padding: 2px 6px; border-radius: 4px; margin-left: 10px;}
+
+button {
+    background: #bb86fc;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #000;
+}
+
+main {
+    display: grid;
+    grid-template-columns: 250px 1fr 250px;
+    height: 100%;
+    overflow: hidden;
+}
+
+#assets-panel, #properties-panel {
+    background: #1a1a1a;
+    border-right: 1px solid #333;
+    border-left: 1px solid #333;
+    padding: 15px;
+}
+
+#viewport {
+    background: #0f0f0f;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+#canvas-container {
+    width: 80%;
+    aspect-ratio: 16/9;
+    background: black;
+    position: relative;
+    border: 1px solid #333;
+    overflow: hidden;
+}
+
+.placeholder { color: #555; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+#timeline {
+    background: #1e1e1e;
+    border-top: 1px solid #333;
+    padding: 10px;
+}
+
+img.layer-asset {
+    position: absolute;
+    cursor: grab;
+    user-select: none;
+}
