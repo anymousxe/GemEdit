@@ -1,7 +1,7 @@
 // --- 1. IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
 // --- 2. YOUR REAL CONFIG (BAKED IN) ---
 const firebaseConfig = {
@@ -20,7 +20,13 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- 4. AUTH & ROUTING ---
+// --- 4. STATE ---
+let currentUser = null;
+let currentProjectId = null;
+let selectedElement = null;
+let layers = []; // Track layers for the timeline
+
+// --- 5. AUTH & ROUTING ---
 const els = {
     auth: document.getElementById('auth-screen'),
     dash: document.getElementById('dashboard'),
@@ -28,279 +34,253 @@ const els = {
     loginBtn: document.getElementById('google-login-btn'),
     logoutBtn: document.getElementById('logout-btn'),
     dashUser: document.getElementById('dash-user-name'),
+    projectsList: document.getElementById('projects-list'),
     newProjectBtn: document.getElementById('new-project-btn'),
-    backToDashBtn: document.getElementById('back-to-dash-btn')
+    backToDashBtn: document.getElementById('back-to-dash-btn'),
+    projectTitle: document.getElementById('project-title-input'),
+    canvas: document.getElementById('canvas-stage')
 };
 
-// Login
-if (els.loginBtn) {
-    els.loginBtn.addEventListener('click', () => {
-        signInWithPopup(auth, provider).catch(err => alert("Login Error: " + err.message));
-    });
-}
-
-// Logout
-if (els.logoutBtn) {
-    els.logoutBtn.addEventListener('click', () => {
-        signOut(auth).then(() => location.reload());
-    });
-}
+// Login/Logout
+els.loginBtn.addEventListener('click', () => signInWithPopup(auth, provider));
+els.logoutBtn.addEventListener('click', () => signOut(auth).then(() => location.reload()));
 
 // Auth Listener
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // Show Dashboard
-        if(els.auth) els.auth.classList.add('hidden');
-        if(els.dash) els.dash.classList.remove('hidden');
-        if(els.dashUser) els.dashUser.textContent = user.displayName;
+        currentUser = user;
+        els.auth.classList.add('hidden');
+        els.dash.classList.remove('hidden');
+        els.dashUser.textContent = user.displayName;
+        loadProjects();
     } else {
-        // Show Login
-        if(els.auth) els.auth.classList.remove('hidden');
-        if(els.dash) els.dash.classList.add('hidden');
-        if(els.editor) els.editor.classList.add('hidden');
+        els.auth.classList.remove('hidden');
+        els.dash.classList.add('hidden');
+        els.editor.classList.add('hidden');
     }
 });
 
-// Navigation
-if (els.newProjectBtn) {
-    els.newProjectBtn.addEventListener('click', () => {
-        els.dash.classList.add('hidden');
-        els.editor.classList.remove('hidden');
+// --- 6. PROJECT MANAGEMENT ---
+async function loadProjects() {
+    els.projectsList.innerHTML = ''; // Clear old/fake demos
+    const q = await getDocs(collection(db, `users/${currentUser.uid}/projects`));
+    
+    q.forEach(docSnap => {
+        const data = docSnap.data();
+        const card = document.createElement('div');
+        card.className = 'project-card';
+        card.innerHTML = `
+            <h3>${data.name}</h3>
+            <span style="font-size:0.7rem; color:#666">Edited: Today</span>
+            <div class="delete-proj" data-id="${docSnap.id}">✕</div>
+        `;
+        
+        // Open Project
+        card.addEventListener('click', (e) => {
+            if(!e.target.classList.contains('delete-proj')) openProject(docSnap.id, data);
+        });
+
+        // Delete Project
+        card.querySelector('.delete-proj').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if(confirm("Delete this project?")) {
+                await deleteDoc(doc(db, `users/${currentUser.uid}/projects`, docSnap.id));
+                loadProjects();
+            }
+        });
+
+        els.projectsList.appendChild(card);
     });
 }
 
-if (els.backToDashBtn) {
-    els.backToDashBtn.addEventListener('click', () => {
-        els.editor.classList.add('hidden');
-        els.dash.classList.remove('hidden');
+els.newProjectBtn.addEventListener('click', async () => {
+    const docRef = await addDoc(collection(db, `users/${currentUser.uid}/projects`), {
+        name: "Untitled Project",
+        createdAt: new Date().toISOString()
     });
+    openProject(docRef.id, { name: "Untitled Project" });
+});
+
+function openProject(id, data) {
+    currentProjectId = id;
+    els.projectTitle.value = data.name;
+    els.dash.classList.add('hidden');
+    els.editor.classList.remove('hidden');
+    els.canvas.innerHTML = ''; 
+    document.getElementById('timeline-tracks').innerHTML = ''; // Clear timeline
+    layers = [];
+    
+    // Reset to 16:9 Default
+    updateRatio('16/9');
 }
 
-// --- 5. LAYER SYSTEM ---
+// Rename Project
+els.projectTitle.addEventListener('change', async (e) => {
+    if(currentProjectId) {
+        await updateDoc(doc(db, `users/${currentUser.uid}/projects`, currentProjectId), {
+            name: e.target.value
+        });
+    }
+});
+
+els.backToDashBtn.addEventListener('click', () => {
+    els.editor.classList.add('hidden');
+    els.dash.classList.remove('hidden');
+    loadProjects();
+});
+
+// --- 7. ASPECT RATIO ENGINE (CapCut Style) ---
+document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateRatio(btn.dataset.ratio);
+    });
+});
+
+function updateRatio(ratio) {
+    const stage = els.canvas;
+    // Base height 500px, calculate width based on ratio
+    if(ratio === '16/9') { stage.style.width = '888px'; stage.style.height = '500px'; }
+    if(ratio === '9/16') { stage.style.width = '281px'; stage.style.height = '500px'; }
+    if(ratio === '1/1') { stage.style.width = '500px'; stage.style.height = '500px'; }
+}
+
+// --- 8. LAYER & TIMELINE SYSTEM ---
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-upload');
-const stage = document.getElementById('canvas-stage');
-let selectedElement = null;
 
-if (dropZone && fileInput) {
-    dropZone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-        Array.from(e.target.files).forEach(f => {
-            const url = URL.createObjectURL(f);
-            createLayer(url, f.type.includes('video') ? 'video' : 'image');
-        });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+    Array.from(e.target.files).forEach(f => {
+        const url = URL.createObjectURL(f);
+        createLayer(url, f.type.includes('video') ? 'video' : 'image', f.name);
     });
-}
+});
 
-function createLayer(url, type) {
-    if (!stage) return;
-
-    // Container
-    const container = document.createElement('div');
-    container.className = 'layer-element';
-    container.style.width = '400px';
-    container.style.top = '100px'; 
-    container.style.left = '100px';
+function createLayer(url, type, name) {
+    const id = 'layer-' + Date.now();
     
-    // Media Content
+    // 1. Create Canvas Element
+    const el = document.createElement('div');
+    el.className = 'layer-element';
+    el.id = id;
+    el.style.width = '300px'; el.style.top = '50px'; el.style.left = '50px';
+    
     const content = document.createElement(type === 'video' ? 'video' : 'img');
     content.src = url;
-    content.style.width = '100%'; 
-    content.style.height = '100%'; 
-    content.style.objectFit = 'contain'; // Better for resizing
+    content.style.width = '100%'; content.style.height = '100%'; content.style.objectFit = 'cover';
+    if(type === 'video') { content.loop = true; content.muted = true; content.play(); }
     
-    if(type === 'video') { 
-        content.loop = true; 
-        content.muted = true; 
-        content.play(); 
-    }
-    
-    container.appendChild(content);
-    stage.appendChild(container);
+    el.appendChild(content);
+    els.canvas.appendChild(el);
+    makeDraggable(el);
 
-    makeDraggable(container);
-    container.addEventListener('mousedown', (e) => { 
-        e.stopPropagation(); 
-        selectLayer(container); 
-    });
+    // 2. Create Timeline Track Bar
+    const track = document.createElement('div');
+    track.className = 'track-bar';
+    track.id = 'track-' + id;
+    track.innerHTML = `<span class="iconify" data-icon="ph:${type === 'video' ? 'film-strip' : 'image'}"></span> ${name}`;
     
-    selectLayer(container);
+    // Click Track to Select Layer
+    track.addEventListener('click', () => selectLayer(el, track));
+    el.addEventListener('mousedown', (e) => { e.stopPropagation(); selectLayer(el, track); });
+
+    document.getElementById('timeline-tracks').appendChild(track);
+    
+    layers.push({ id, el, track });
+    selectLayer(el, track);
 }
 
-// --- 6. PROPERTIES & EFFECTS ENGINE ---
-function selectLayer(el) {
+// --- 9. SELECTION & PROPERTIES ---
+function selectLayer(el, track) {
     selectedElement = el;
+    
+    // Highlight Canvas Element
     document.querySelectorAll('.layer-element').forEach(e => e.classList.remove('selected'));
     el.classList.add('selected');
+    
+    // Highlight Timeline Track
+    document.querySelectorAll('.track-bar').forEach(t => t.classList.remove('selected'));
+    track.classList.add('selected');
 
+    // Load Properties
     const panel = document.getElementById('prop-panel-content');
     const template = document.getElementById('layer-props-template');
-    
-    if (!panel || !template) return;
-
     panel.innerHTML = '';
     panel.appendChild(template.content.cloneNode(true));
+    
+    const content = el.querySelector('img, video');
 
-    const contentEl = el.querySelector('img, video'); 
-
-    // 1. Bind Number Inputs (W/H)
-    panel.querySelectorAll('.prop-num-input').forEach(input => {
-        const prop = input.dataset.prop;
-        // Get computed style initially
-        input.value = parseInt(el.style[prop] || el.getBoundingClientRect()[prop]); 
-        
-        input.addEventListener('input', (e) => {
-            el.style[prop] = e.target.value + 'px';
-        });
-    });
-
-    // 2. Bind Sliders
+    // Bind Controls
     panel.querySelectorAll('.prop-slider').forEach(slider => {
         const prop = slider.dataset.prop;
         const filter = slider.dataset.filter;
-
-        // Init Values
-        if(prop === 'scale') slider.value = el.dataset.scale || 1;
-        if(prop === 'opacity') slider.value = (el.style.opacity || 1) * 100;
         
-        // Init Filters
-        if(filter) {
-            slider.value = contentEl.dataset[filter] || (filter === 'contrast' || filter === 'brightness' ? 100 : 0);
-        }
+        // Init Values
+        if(prop === 'opacity') slider.value = (el.style.opacity || 1) * 100;
+        if(prop === 'scale') slider.value = el.dataset.scale || 1;
 
         slider.addEventListener('input', (e) => {
             const val = e.target.value;
-            // Update Text Display
-            const display = e.target.previousElementSibling.querySelector('.val-display');
-            if(display) display.innerText = val + (filter ? (filter === 'blur' ? 'px' : '%') : '');
+            if(e.target.previousElementSibling) 
+                e.target.previousElementSibling.querySelector('.val-display').innerText = val + (filter ? '' : '%');
             
-            if(prop) applyTransform(el, prop, val);
-            if(filter) applyFilter(contentEl, filter, val);
+            if(prop === 'opacity') el.style.opacity = val / 100;
+            if(prop === 'scale') {
+                el.dataset.scale = val;
+                el.style.transform = `scale(${val})`;
+            }
+            if(filter) {
+                // Simplified single filter for demo, real stacking requires state management
+                content.style.filter = `${filter}(${val}${filter === 'hue-rotate' ? 'deg' : filter === 'blur' ? 'px' : '%'})`;
+            }
         });
     });
 
-    // 3. Bind Actions
-    const splitBtn = panel.querySelector('[data-action="split"]');
-    if(splitBtn) splitBtn.addEventListener('click', () => splitLayer(el));
-    
-    const delBtn = panel.querySelector('[data-action="delete"]');
-    if(delBtn) delBtn.addEventListener('click', () => {
+    // Delete
+    panel.querySelector('[data-action="delete"]').addEventListener('click', () => {
         el.remove();
-        panel.innerHTML = '<p class="empty-state">Select a layer to edit</p>';
+        track.remove();
+        panel.innerHTML = '<p class="empty-state">Select a layer</p>';
     });
 }
 
-function applyTransform(el, prop, val) {
-    if(prop === 'opacity') el.style.opacity = val / 100;
-    if(prop === 'scale') {
-        el.dataset.scale = val;
-        el.style.transform = `scale(${val})`;
-    }
-}
-
-function applyFilter(contentEl, filterName, val) {
-    // Save state
-    contentEl.dataset[filterName] = val;
-
-    // Build filter string
-    const filters = [
-        `blur(${contentEl.dataset.blur || 0}px)`,
-        `grayscale(${contentEl.dataset.grayscale || 0}%)`,
-        `sepia(${contentEl.dataset.sepia || 0}%)`,
-        `invert(${contentEl.dataset.invert || 0}%)`,
-        `contrast(${contentEl.dataset.contrast || 100}%)`
-    ];
-    
-    contentEl.style.filter = filters.join(' ');
-}
-
-// SPLICING
-function splitLayer(el) {
-    const rect = el.getBoundingClientRect();
-    const currentWidth = rect.width;
-    const newWidth = currentWidth / 2;
-    
-    el.style.width = newWidth + 'px';
-    
-    const clone = el.cloneNode(true);
-    const currentLeft = parseInt(el.style.left || 0);
-    
-    clone.style.left = (currentLeft + newWidth + 20) + 'px';
-    clone.style.width = newWidth + 'px';
-    
-    // Make clone interactive
-    stage.appendChild(clone);
-    makeDraggable(clone);
-    clone.addEventListener('mousedown', (e) => { e.stopPropagation(); selectLayer(clone); });
-    
-    selectLayer(clone);
-}
-
-// --- 7. SCRUBBER ---
-const scrubber = document.getElementById('scrubber');
-const timeDisplay = document.getElementById('time-display');
-let isPlaying = false; 
-let playInterval;
-
-const playBtn = document.getElementById('play-btn');
-const stopBtn = document.getElementById('stop-btn');
-
-if (playBtn && stopBtn && scrubber) {
-    playBtn.addEventListener('click', () => {
-        if(isPlaying) return;
-        isPlaying = true;
-        playInterval = setInterval(() => {
-            let val = parseInt(scrubber.value);
-            if(val >= 100) val = 0;
-            scrubber.value = val + 1;
-            updateTime(scrubber.value);
-        }, 100); 
-    });
-
-    stopBtn.addEventListener('click', () => {
-        isPlaying = false;
-        clearInterval(playInterval);
-    });
-
-    scrubber.addEventListener('input', (e) => updateTime(e.target.value));
-}
-
-function updateTime(val) {
-    // Visual playhead
-    const track = document.querySelector('.timeline-track-container');
-    if(track) track.style.setProperty('--seek-pos', val + '%');
-    
-    // Time Text
-    const totalSeconds = Math.floor((val / 100) * 60);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    if(timeDisplay) timeDisplay.textContent = `00:${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
-}
-
-// --- 8. PHYSICS ---
+// --- 10. PHYSICS ---
 function makeDraggable(element) {
-    let isDragging = false; 
-    let startX, startY, initialLeft, initialTop;
-    
+    let isDragging = false; let startX, startY, initialLeft, initialTop;
     element.addEventListener('mousedown', (e) => {
-        isDragging = true; 
-        startX = e.clientX; 
-        startY = e.clientY;
-        initialLeft = element.offsetLeft; 
-        initialTop = element.offsetTop;
+        isDragging = true; startX = e.clientX; startY = e.clientY;
+        initialLeft = element.offsetLeft; initialTop = element.offsetTop;
         element.style.cursor = 'grabbing';
     });
-    
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        element.style.left = `${initialLeft + dx}px`;
-        element.style.top = `${initialTop + dy}px`;
+        element.style.left = `${initialLeft + (e.clientX - startX)}px`;
+        element.style.top = `${initialTop + (e.clientY - startY)}px`;
     });
-    
-    window.addEventListener('mouseup', () => { 
-        isDragging = false; 
-        element.style.cursor = 'grab'; 
-    });
+    window.addEventListener('mouseup', () => { isDragging = false; element.style.cursor = 'grab'; });
+}
+
+// --- 11. TRANSPORT ---
+const scrubber = document.getElementById('scrubber');
+const timeDisplay = document.getElementById('time-display');
+let isPlaying = false; let playInterval;
+
+document.getElementById('play-btn').addEventListener('click', () => {
+    if(isPlaying) return; isPlaying = true;
+    playInterval = setInterval(() => {
+        let val = parseInt(scrubber.value) + 1;
+        if(val > 100) val = 0;
+        scrubber.value = val;
+        updateTime(val);
+    }, 100);
+});
+document.getElementById('stop-btn').addEventListener('click', () => { isPlaying = false; clearInterval(playInterval); });
+scrubber.addEventListener('input', (e) => updateTime(e.target.value));
+
+function updateTime(val) {
+    const secs = Math.floor((val / 100) * 60);
+    const m = Math.floor(secs / 60); const s = secs % 60;
+    timeDisplay.textContent = `00:${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
 }
